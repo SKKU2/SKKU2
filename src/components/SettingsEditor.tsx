@@ -18,7 +18,10 @@ export function SettingsEditor({ unit, hasServerKey }: { unit: { id: string; nam
   const [dirty, setDirty] = useState(false);
   const [testMsg, setTestMsg] = useState('');
 
-  const upd = (fn: (x: UnitSettings) => void) => setS(prev => { const x = JSON.parse(JSON.stringify(prev)); fn(x); setDirty(true); return x; });
+  const upd = (fn: (x: UnitSettings) => void) => {
+    setS(prev => { const x = JSON.parse(JSON.stringify(prev)); fn(x); return x; });
+    setDirty(true);
+  };
   const numOrNull = (v: string) => (v === '' ? null : Number(v));
 
   async function save() {

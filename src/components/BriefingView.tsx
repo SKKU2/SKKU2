@@ -56,7 +56,8 @@ export function BriefingView({ b, prev, unitName, settings, editable, aiReady }:
     setBusy('');
   }
   async function copy() {
-    toast((await copyForHwp(current)) ? '표를 복사했습니다. 한글 문서에서 Ctrl+V로 붙여넣으세요.' : '클립보드 복사에 실패했습니다', 'ok');
+    if (await copyForHwp(current)) toast('표를 복사했습니다. 한글 문서에서 Ctrl+V로 붙여넣으세요.', 'ok');
+    else toast('클립보드 복사에 실패했습니다', 'err');
   }
   async function remove() {
     if (!confirm('이 브리핑을 삭제할까요? 되돌릴 수 없습니다.')) return;
