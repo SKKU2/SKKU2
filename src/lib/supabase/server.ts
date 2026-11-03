@@ -26,16 +26,27 @@ export async function serverClient(): Promise<any> {
   });
 }
 
-/** 로그인 사용자와 프로필. 없으면 로그인 화면으로 */
-export async function requireProfile(roles?: Role[]) {
+/**
+ * 로그인 사용자와 프로필. 없으면 로그인 화면으로.
+ * 정지된 계정은 로그아웃시키고, 임시 비밀번호 상태면 비밀번호 변경 화면으로 보낸다.
+ */
+export async function requireProfile(roles?: Role[], opts?: { allowMustChange?: boolean }) {
   if (isMisconfigured()) redirect('/login');
   const sb = await serverClient();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) redirect('/login');
-  const { data: profile } = await sb.from('profiles').select('id,email,display_name,role,unit_id').eq('id', user.id).single();
+  const { data: profile } = await sb.from('profiles').select('id,email,login_id,display_name,role,unit_id,must_change_password,disabled').eq('id', user.id).single();
   if (!profile) redirect('/login?e=profile');
+  if (profile.disabled) {
+    await sb.auth.signOut();
+    redirect('/login?e=disabled');
+  }
+  if (profile.must_change_password && !opts?.allowMustChange) redirect('/account?force=1');
   if (roles && !roles.includes(profile.role as Role)) redirect('/?e=forbidden');
   return { sb, user, profile: profile as Profile };
 }
 
-export const canEdit = (p: Profile) => p.role === 'admin' || (p.role === 'operator' && !!p.unit_id);
+/** 브리핑 작성·수정 가능 */
+export const canEdit = (p: Profile) => p.role === 'admin' || ((p.role === 'operator' || p.role === 'unit_admin') && !!p.unit_id);
+/** 사용자·부대 기준 관리 가능 */
+export const canManage = (p: Profile) => p.role === 'admin' || (p.role === 'unit_admin' && !!p.unit_id);

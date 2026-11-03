@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'operator' | 'viewer';
+export type Role = 'admin' | 'unit_admin' | 'operator' | 'viewer';
 export type Session = 'morning' | 'evening' | 'extreme';
 export type Level = 0 | 1 | 2;
 
@@ -8,6 +8,9 @@ export interface Profile {
   display_name: string;
   role: Role;
   unit_id: string | null;
+  login_id?: string | null;
+  must_change_password?: boolean;
+  disabled?: boolean;
 }
 
 export interface Unit {

@@ -1,26 +1,30 @@
+import Link from 'next/link';
 import { requireProfile } from '@/lib/supabase/server';
 import { loadUnit, unitOf } from '@/lib/data';
 import { aiEnv } from '@/lib/ai';
+import { MANAGER_ROLES } from '@/lib/account';
 import { SettingsEditor } from '@/components/SettingsEditor';
-import { UsersAdmin } from '@/components/UsersAdmin';
-import type { Profile } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
+/** 부대 기준 설정: 총괄관리자는 모든 부대, 부대관리자는 자기 부대 */
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ unit?: string }> }) {
   const { unit: unitParam } = await searchParams;
-  const { sb, profile } = await requireProfile(['admin', 'operator']);
+  const { sb, profile } = await requireProfile(MANAGER_ROLES);
   const unit = await loadUnit(sb, unitOf(profile, unitParam));
-  let units: { id: string; name: string }[] = [];
-  let users: Profile[] = [];
-  if (profile.role === 'admin') {
-    units = ((await sb.from('units').select('id,name').order('name')).data || []) as any;
-    users = ((await sb.from('profiles').select('id,email,display_name,role,unit_id').order('created_at')).data || []) as any;
-  }
+  const units = profile.role === 'admin' ? ((await sb.from('units').select('id,name').order('name')).data || []) as { id: string; name: string }[] : [];
   return (
     <>
-      {profile.role === 'admin' && <UsersAdmin units={units} users={users} me={profile.id} currentUnit={unit?.id || null} />}
-      {unit ? <SettingsEditor key={unit.id} unit={unit} hasServerKey={!!aiEnv().apiKey} /> : <div className="card note">부대를 먼저 만들거나 선택하세요.</div>}
+      {profile.role === 'admin' && (
+        <div className="card" style={{ padding: '10px 14px' }}>
+          <div className="btn-row">
+            <span className="small">편집할 부대:</span>
+            {units.map(u => <Link key={u.id} href={`/settings?unit=${u.id}`} className={'chip' + (u.id === unit?.id ? ' ok' : '')}>{u.name}</Link>)}
+            <Link href="/admin/users" className="small">부대 추가는 “사용자” 메뉴에서</Link>
+          </div>
+        </div>
+      )}
+      {unit ? <SettingsEditor key={unit.id} unit={unit} hasServerKey={!!aiEnv().apiKey} /> : <div className="card note">소속 부대가 없습니다. “사용자” 메뉴에서 부대를 만들거나 지정하세요.</div>}
     </>
   );
 }

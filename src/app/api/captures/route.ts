@@ -1,3 +1,4 @@
+import { EDITOR_ROLES } from '@/lib/account';
 import crypto from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 import { canEdit, requireProfile } from '@/lib/supabase/server';
@@ -7,7 +8,7 @@ const allowed = (profile: any, path: string) => profile.role === 'admin' || (!!p
 const validPath = (p: string | null) => !!p && /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.jpg$/.test(p);
 
 export async function POST(req: NextRequest) {
-  const { sb, profile } = await requireProfile(['admin', 'operator']);
+  const { sb, profile } = await requireProfile(EDITOR_ROLES);
   const form = await req.formData();
   const file = form.get('file');
   const unitId = String(form.get('unitId') || '');
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const { sb, profile } = await requireProfile(['admin', 'operator']);
+  const { sb, profile } = await requireProfile(EDITOR_ROLES);
   const path = req.nextUrl.searchParams.get('path');
   if (!validPath(path) || !allowed(profile, path!)) return NextResponse.json({ error: '권한이 없습니다' }, { status: 403 });
   await sb.storage.from('captures').remove([path!]);

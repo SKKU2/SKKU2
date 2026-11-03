@@ -1,48 +1,61 @@
-# 배포 절차 (Supabase + Vercel)
+# 배포 절차 (Supabase + Vercel, 관리자 발급형 아이디 계정)
 
-코드 쪽 준비는 끝나 있다. 아래는 계정에서 할 일이다.
+계정은 이메일 가입이 아니라 **관리자가 아이디·임시 비밀번호를 발급**한다. 메일을 보내지 않으므로 메일 발송 한도와 무관하다.
 
 ## 1. Supabase
-1. https://supabase.com/dashboard 에서 **New project**
-   - Region: **Northeast Asia (Seoul)** · DB 비밀번호: **Generate a password**로 생성 후 비밀번호 관리자에 보관
-2. **SQL Editor**에서 아래 두 파일 내용을 순서대로 붙여넣고 Run
-   1. `supabase/migrations/0001_init.sql` (테이블·권한(RLS)·트리거·캡처 저장소)
-   2. `supabase/migrations/0002_astro.sql` (박명·월광 열)
-   - 확인: Table Editor에 `units`, `profiles`, `briefings`가 보이고, Storage에 `captures`(Private) 버킷이 보이면 성공
-3. **Project Settings → API**에서 두 값을 확인 (Vercel에 넣을 값)
+1. 프로젝트 (Region: Northeast Asia (Seoul))
+2. **SQL Editor**에서 순서대로 Run
+   1. `supabase/migrations/0001_init.sql` — 처음 만드는 프로젝트만
+   2. `supabase/migrations/0002_astro.sql` — 처음 만드는 프로젝트만
+   3. (기존 계정·데이터를 지우고 새로 시작할 때만) `supabase/reset_accounts.sql` — **되돌릴 수 없음**
+   4. `supabase/migrations/0003_id_accounts.sql`
+3. **Authentication → Sign In / Providers**
+   - **Allow new users to sign up: 끄기** (공개 가입 차단. 관리자 발급은 계속 동작)
+   - Email provider는 켜 둔다 (아이디 로그인이 내부적으로 사용). Confirm email은 상관없음
+4. **Project Settings → API Keys**에서 세 값을 확인
    - Project URL → `NEXT_PUBLIC_SUPABASE_URL`
-   - Publishable key(`sb_publishable_…`, 없으면 anon public key) → `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-   - **secret / service_role 키는 쓰지 않는다** (앱에 필요 없음, 넣으면 안 됨)
+   - Publishable key(`sb_publishable_…`, 없으면 anon) → `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - **Secret key**(`sb_secret_…`, 없으면 service_role) → `SUPABASE_SECRET_KEY` (서버 전용)
 
-## 2. Vercel
-1. https://vercel.com/new → **Import Git Repository** → `SKKU2/SKKU2`
-   - Framework: Next.js (자동) · Root Directory: 그대로(`./`)
-2. **Environment Variables** (Production·Preview·Development 모두)
-   | 이름 | 값 |
-   |---|---|
-   | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL |
-   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable(anon) key |
-   | `GEMINI_API_KEY` | Google AI Studio 키 (AI 안 쓰면 생략) |
-3. **Deploy**. 이후 GitHub `main`에 푸시될 때마다 자동 재배포된다.
-   - 환경변수를 나중에 바꾸면 **Redeploy**해야 반영된다 (`NEXT_PUBLIC_*`는 빌드 때 들어감).
+## 2. Vercel 환경변수 (Settings → Environment Variables, 모든 환경)
+| 이름 | 값 |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key |
+| `SUPABASE_SECRET_KEY` | Secret key — **Sensitive로 표시**, `NEXT_PUBLIC_` 붙이지 말 것 |
+| `SETUP_CODE` | 최초 설치용 코드 (예: 무작위 12자 이상). 설치 후 지워도 됨 |
+| `GEMINI_API_KEY` | (선택) Google AI Studio 키 |
 
-## 3. Supabase 로그인 주소 등록
-Supabase → **Authentication → URL Configuration**
-- Site URL: `https://<배포주소>.vercel.app`
-- Redirect URLs: `https://<배포주소>.vercel.app/auth/callback`, `http://localhost:3000/auth/callback`
+환경변수를 바꾼 뒤에는 **Deployments → Redeploy**.
 
-가입 확인 메일은 Supabase 기본 메일 서버를 쓰며 시간당 발송 수가 적다. 사용자가 늘면 Authentication → SMTP에 부대 메일 서버를 연결한다.
+## 3. 확인
+`https://<배포주소>/api/health` →
+`{"mode":"supabase","supabaseEnv":true,"secretKey":true,"setupCode":true,"geminiKey":…,"db":"ok","accountSchema":"ok","adminExists":false}`
+- `accountSchema: missing…` → 0003 SQL 미실행
+- `secretKey:false` / `setupCode:false` → Vercel 환경변수 누락 후 Redeploy
 
-## 4. 확인
-1. `https://<배포주소>.vercel.app/api/health`
-   → `{"mode":"supabase","supabaseEnv":true,"geminiKey":true,"db":"ok"}` 이면 정상
-   - `misconfigured`: Vercel 환경변수 누락 → 넣고 Redeploy
-   - `db: error …`: SQL(1-2단계)이 실행되지 않음
-2. `/login`에서 **가입** → 확인 메일 링크 클릭 → 로그인. **첫 가입자가 관리자**가 된다.
-3. 설정 → 부대·사용자 관리에서 **부대 추가** → 설정에서 위도·경도, AI 사용 켜기 → **연결 테스트**
-4. 새 브리핑 → 샘플 전문 넣기 → 판단 실행 → pptx·인쇄 확인
-5. 다른 사용자는 가입 후 관리자가 역할(조작자/열람자)과 부대를 지정한다.
+## 4. 최초 설치와 사용자 발급
+1. `https://<배포주소>/setup` → 설치 코드, 첫 부대 이름, 총괄관리자 아이디·이름·비밀번호 → 만들기
+   - 총괄관리자가 생기면 이 화면은 닫힌다 (`adminExists:true`)
+2. `/login`에서 아이디로 로그인
+3. **사용자** 메뉴
+   - 부대 추가 (총괄관리자)
+   - 사용자 발급: 아이디(예: 군번), 이름·계급, 역할, 부대 → 임시 비밀번호가 표시됨(한 번만) → 본인에게 전달
+   - 여러 명은 "여러 명 붙여넣기"에 `아이디, 이름, 역할, 부대` 한 줄씩
+4. 발급받은 사람은 임시 비밀번호로 로그인 → 새 비밀번호 설정 화면이 강제로 나온다
+5. 비밀번호를 잊으면 관리자가 **비밀번호 초기화** (새 임시 비밀번호)
+
+## 역할
+| 역할 | 할 수 있는 일 |
+|---|---|
+| 총괄관리자 | 모든 부대·사용자, 부대 생성 |
+| 부대관리자 | 자기 부대의 조작자·열람자 발급·초기화·정지·삭제, 부대 기준 설정, 브리핑 작성 |
+| 조작자 | 브리핑 작성·수정 |
+| 열람자 | 열람·출력 |
+
+마지막 총괄관리자는 강등·정지·삭제할 수 없다 (DB 규칙).
 
 ## 보안 메모
-- 저장소가 Public이면 코드와 PRD가 공개된다. 필요하면 GitHub에서 Private로 바꾼다 (Vercel 연동은 유지됨).
+- `SUPABASE_SECRET_KEY`는 RLS를 우회하는 키다. Vercel 환경변수에만 두고 채팅·문서·커밋에 남기지 않는다.
+- 저장소가 Public이면 코드와 PRD가 공개된다. 필요하면 Private로 바꾼다.
 - 실제 부대 자료를 퍼블릭 클라우드·외부 AI에 올리기 전 보안 승인을 받는다.

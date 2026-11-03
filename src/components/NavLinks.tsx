@@ -4,11 +4,13 @@ import { usePathname } from 'next/navigation';
 
 export function NavLinks({ role }: { role: string }) {
   const path = usePathname();
+  const editor = role === 'admin' || role === 'unit_admin' || role === 'operator';
+  const manager = role === 'admin' || role === 'unit_admin';
   const links = [
     { href: '/', label: '현황' },
-    ...(role !== 'viewer' ? [{ href: '/briefings/new', label: '새 브리핑' }] : []),
+    ...(editor ? [{ href: '/briefings/new', label: '새 브리핑' }] : []),
     { href: '/history', label: '이력' },
-    ...(role !== 'viewer' ? [{ href: '/settings', label: '설정' }] : [])
+    ...(manager ? [{ href: '/settings', label: '기준 설정' }, { href: '/admin/users', label: '사용자' }] : [])
   ];
   const active = (h: string) => (h === '/' ? path === '/' : path.startsWith(h));
   return (

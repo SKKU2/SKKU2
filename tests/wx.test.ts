@@ -4,6 +4,7 @@ import * as R from '../src/lib/wx/rules.js';
 import * as G from '../src/lib/wx/advisor.js';
 import { MiniPptx, crc32 } from '../src/lib/wx/pptx.js';
 import { astroForDay, moonIllumination } from '../src/lib/wx/astro.js';
+import { ID_RE, normalizeId, toEmail } from '../src/lib/account';
 import { evaluateInput, kstStrToDate } from '../src/lib/briefing';
 
 const REF = new Date('2026-11-02T22:00:00Z'); // 11/3 07:00 KST
@@ -154,6 +155,15 @@ describe('박명·월광', () => {
     const ev = evaluateInput(input, R.defaultSettings() as any);
     expect(ev.astro?.phaseName).toBeTruthy();
     expect(ev.astro?.illumination).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('계정 아이디', () => {
+  it('아이디 규칙과 내부 주소', () => {
+    expect(['21-12345', 'kim.cs', 'admin_01'].every(s => ID_RE.test(s))).toBe(true);
+    expect(['ab', 'Kim', '홍길동', 'a b', '-abc', 'x'.repeat(33)].some(s => ID_RE.test(s))).toBe(false);
+    expect(normalizeId('  Kim.CS ')).toBe('kim.cs');
+    expect(toEmail('Kim.CS')).toBe('kim.cs@id.wxbrief.local');
   });
 });
 

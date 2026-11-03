@@ -1,10 +1,10 @@
 'use server';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { EDITOR_ROLES, MANAGER_ROLES } from '@/lib/account';
 import { canEdit, requireProfile } from '@/lib/supabase/server';
 import { evaluateInput, kstStrToDate, normalizeSettings } from '@/lib/briefing';
 import { aiOptions, mergeAdvice, payloadFor, requestAdvice, testConnection } from '@/lib/ai';
-import type { BriefingInput, BriefingRow, Recommendation, Role, Session } from '@/lib/types';
+import type { BriefingInput, BriefingRow, Recommendation, Session } from '@/lib/types';
 
 type Result<T = unknown> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -17,7 +17,7 @@ const SESSIONS: Session[] = ['morning', 'evening', 'extreme'];
 
 /** 판단 실행: 서버에서 다시 해석·판정한 뒤 저장 (클라이언트 결과를 그대로 믿지 않음) */
 export async function runJudgment(input: BriefingInput, unitIdForAdmin?: string): Promise<Result<{ id: string }>> {
-  const { sb, user, profile } = await requireProfile(['admin', 'operator']);
+  const { sb, user, profile } = await requireProfile(EDITOR_ROLES);
   const unitId = profile.role === 'admin' ? unitIdForAdmin || profile.unit_id : profile.unit_id;
   if (!unitId) return { ok: false, error: '소속 부대가 지정되지 않았습니다. 관리자에게 요청하세요.' };
   const target = kstStrToDate(input.targetTime);
@@ -58,7 +58,7 @@ export async function runJudgment(input: BriefingInput, unitIdForAdmin?: string)
 
 /** 권고 문구 수정·비고·AI 포함 여부 저장 */
 export async function saveEdits(id: string, edits: { texts: Record<string, string>; memo: string; includeAi: boolean }): Promise<Result> {
-  const { sb, profile } = await requireProfile(['admin', 'operator']);
+  const { sb, profile } = await requireProfile(EDITOR_ROLES);
   if (!canEdit(profile)) return { ok: false, error: '수정 권한이 없습니다' };
   const { data: b, error } = await sb.from('briefings').select('recommendations').eq('id', id).single();
   if (error || !b) return { ok: false, error: '브리핑을 찾을 수 없습니다' };
@@ -73,7 +73,7 @@ export async function saveEdits(id: string, edits: { texts: Record<string, strin
 }
 
 export async function deleteBriefing(id: string): Promise<Result> {
-  const { sb } = await requireProfile(['admin', 'operator']);
+  const { sb } = await requireProfile(EDITOR_ROLES);
   const { data: b } = await sb.from('briefings').select('capture_paths').eq('id', id).single();
   if (b?.capture_paths?.length) await sb.storage.from('captures').remove(b.capture_paths);
   const { error } = await sb.from('briefings').delete().eq('id', id);
@@ -131,7 +131,7 @@ export async function aiRun(id: string): Promise<Result<{ upgraded: number; erro
 }
 
 export async function aiTest(unitId: string): Promise<Result<{ model: string }>> {
-  const { sb } = await requireProfile(['admin', 'operator']);
+  const { sb } = await requireProfile(EDITOR_ROLES);
   const { settings } = await unitSettings(sb, unitId);
   try {
     const r = await testConnection(aiOptions(settings));
@@ -141,9 +141,10 @@ export async function aiTest(unitId: string): Promise<Result<{ model: string }>>
   }
 }
 
-/* ---------- 설정·사용자 ---------- */
+/* ---------- 부대 기준 설정 (계정 관리는 account-actions.ts) ---------- */
 export async function saveUnitSettings(unitId: string, settings: unknown, name?: string): Promise<Result> {
-  const { sb } = await requireProfile(['admin', 'operator']);
+  const { sb, profile } = await requireProfile(MANAGER_ROLES);
+  if (profile.role !== 'admin' && unitId !== profile.unit_id) return { ok: false, error: '소속 부대의 설정만 바꿀 수 있습니다' };
   const patch: any = { settings: normalizeSettings(settings) };
   if (typeof name === 'string' && name.trim()) patch.name = name.trim().slice(0, 60);
   const { error } = await sb.from('units').update(patch).eq('id', unitId);
@@ -152,37 +153,9 @@ export async function saveUnitSettings(unitId: string, settings: unknown, name?:
   return { ok: true };
 }
 
-export async function createUnit(name: string): Promise<Result<{ id: string }>> {
-  const { sb, profile } = await requireProfile(['admin']);
-  const { data, error } = await sb.from('units').insert({ name: name.trim().slice(0, 60) || '새 부대', settings: normalizeSettings(null) }).select('id').single();
-  if (error) return { ok: false, error: error.message };
-  if (!profile.unit_id) await sb.from('profiles').update({ unit_id: data.id }).eq('id', profile.id);
-  revalidatePath('/settings');
-  return { ok: true, data: { id: data.id } };
-}
-
-export async function updateUser(userId: string, patch: { role?: Role; unit_id?: string | null }): Promise<Result> {
-  const { sb } = await requireProfile(['admin']);
-  const p: any = {};
-  if (patch.role && ['admin', 'operator', 'viewer'].includes(patch.role)) p.role = patch.role;
-  if (patch.unit_id !== undefined) p.unit_id = patch.unit_id || null;
-  const { error } = await sb.from('profiles').update(p).eq('id', userId);
-  if (error) return { ok: false, error: error.message };
-  revalidatePath('/settings');
-  return { ok: true };
-}
-
-export async function updateMyName(name: string): Promise<Result> {
-  const { sb, profile } = await requireProfile();
-  const { error } = await sb.from('profiles').update({ display_name: name.trim().slice(0, 40) }).eq('id', profile.id);
-  if (error) return { ok: false, error: error.message };
-  revalidatePath('/', 'layout');
-  return { ok: true };
-}
-
 /** 백업 불러오기: 같은 부대 기록만 받아들임 */
 export async function importBackup(json: string): Promise<Result<{ count: number }>> {
-  const { sb, profile } = await requireProfile(['admin', 'operator']);
+  const { sb, profile } = await requireProfile(EDITOR_ROLES);
   let data: any;
   try { data = JSON.parse(json); } catch { return { ok: false, error: 'JSON 파일을 읽지 못했습니다' }; }
   if (!data || data.format !== 'wxbrief-web-backup' || !Array.isArray(data.briefings)) return { ok: false, error: '이 앱의 백업 파일이 아닙니다' };
@@ -192,12 +165,6 @@ export async function importBackup(json: string): Promise<Result<{ count: number
   if (error) return { ok: false, error: error.message };
   revalidatePath('/history');
   return { ok: true, data: { count: rows.length } };
-}
-
-export async function signOut() {
-  const { sb } = await requireProfile();
-  await sb.auth.signOut();
-  redirect('/login');
 }
 
 /** 이력: 직전 회차 비교용 두 건 */
