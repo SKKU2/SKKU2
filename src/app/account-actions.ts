@@ -42,6 +42,19 @@ async function loadTarget(id: string) {
   return data as (Profile & { disabled: boolean }) | null;
 }
 
+/**
+ * 프로필 확정. auth.admin.createUser는 사용자 행을 넣은 뒤 app_metadata를 따로 기록하므로,
+ * handle_new_user 트리거가 만든 프로필에는 역할·아이디·부대가 비어 있다(열람자/NULL). 비밀 키로 직접 덮어쓴다.
+ */
+async function fixProfile(
+  ad: ReturnType<typeof adminClient>,
+  userId: string,
+  p: { email: string; login_id: string; display_name: string; role: Role; unit_id: string | null; must_change_password: boolean }
+) {
+  const { error } = await ad.from('profiles').upsert({ id: userId, ...p, disabled: false }, { onConflict: 'id' });
+  return error;
+}
+
 /* ---------- 최초 설치 ---------- */
 export async function setupStatus(): Promise<{ ready: boolean; needed: boolean; reason?: string }> {
   if (isLocalMode()) return { ready: false, needed: false, reason: '로컬 체험 모드입니다' };
@@ -66,14 +79,21 @@ export async function setupFirstAdmin(input: { code: string; unitName: string; l
   const ad = adminClient();
   const { data: unit, error: ue } = await ad.from('units').insert({ name: (input.unitName || '').trim().slice(0, 60) || '본부', settings: normalizeSettings(null) }).select('id').single();
   if (ue) return fail('부대 생성 실패: ' + ue.message);
-  const { error } = await ad.auth.admin.createUser({
+  const name = (input.name || '').trim().slice(0, 40);
+  const { data: created, error } = await ad.auth.admin.createUser({
     email: toEmail(id), password: input.password, email_confirm: true,
-    user_metadata: { display_name: (input.name || '').trim().slice(0, 40) },
+    user_metadata: { display_name: name },
     app_metadata: { login_id: id, role: 'admin', unit_id: unit.id, must_change_password: false }
   });
-  if (error) {
+  if (error || !created.user) {
     await ad.from('units').delete().eq('id', unit.id);
-    return fail('계정 생성 실패: ' + error.message);
+    return fail('계정 생성 실패: ' + (error?.message || '사용자 정보 없음'));
+  }
+  const pe = await fixProfile(ad, created.user.id, { email: toEmail(id), login_id: id, display_name: name, role: 'admin', unit_id: unit.id, must_change_password: false });
+  if (pe) {
+    await ad.auth.admin.deleteUser(created.user.id);
+    await ad.from('units').delete().eq('id', unit.id);
+    return fail('프로필 설정 실패: ' + pe.message);
   }
   return { ok: true };
 }
@@ -98,13 +118,23 @@ export async function createUsers(list: NewUser[]): Promise<Result<Issued[]>> {
     if (!allowedRolesFor(me).includes(u.role)) { out.push({ loginId: id, name, error: '이 역할을 줄 권한이 없습니다' }); continue; }
     if (u.role !== 'admin' && !unitId) { out.push({ loginId: id, name, error: '소속 부대를 지정하세요' }); continue; }
     const password = tempPassword();
-    const { error } = await ad.auth.admin.createUser({
+    const { data: created, error } = await ad.auth.admin.createUser({
       email: toEmail(id), password, email_confirm: true,
       user_metadata: { display_name: name },
       app_metadata: { login_id: id, role: u.role, unit_id: unitId, must_change_password: true }
     });
-    if (error) out.push({ loginId: id, name, error: /already|exists|registered/i.test(error.message) ? '이미 있는 아이디' : error.message });
-    else out.push({ loginId: id, name, password });
+    if (error || !created.user) {
+      const m = error?.message || '사용자 정보 없음';
+      out.push({ loginId: id, name, error: /already|exists|registered/i.test(m) ? '이미 있는 아이디' : m });
+      continue;
+    }
+    const pe = await fixProfile(ad, created.user.id, { email: toEmail(id), login_id: id, display_name: name, role: u.role, unit_id: unitId, must_change_password: true });
+    if (pe) {
+      await ad.auth.admin.deleteUser(created.user.id);
+      out.push({ loginId: id, name, error: '프로필 설정 실패: ' + pe.message });
+      continue;
+    }
+    out.push({ loginId: id, name, password });
   }
   revalidatePath('/admin/users');
   return { ok: true, data: out };
