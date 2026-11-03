@@ -31,6 +31,11 @@ npm test
 - `.env.local`에 Supabase 값이 **없으면 로컬 체험 모드**로 동작한다: 로그인 없이 관리자로 들어가고, 데이터와 캡처는 `.localdata/`에 저장되며, 첫 실행 시 시범 부대와 예시 브리핑 1건이 만들어진다.
 - Supabase를 쓰려면 `.env.example`을 `.env.local`로 복사해 값을 넣고, `supabase/migrations/0001_init.sql`을 Supabase SQL 편집기에서 실행한다.
 
+## GitHub 자동 반영
+- `npm run sync`: 바뀐 파일을 커밋하고 `origin`(GitHub)에 푸시한다.
+- `npm run sync:watch`: 파일 저장을 감시해 마지막 저장 15초 뒤 자동으로 커밋·푸시한다 (직접 편집할 때 켜 둔다).
+- 개발 PC에서는 Claude Code가 작업을 마칠 때마다 같은 스크립트가 실행된다 (`../.claude/settings.json`의 Stop 훅).
+
 ## 문서
 - [PRD](docs/PRD_기상브리핑_부대운용건의도구_2.md)
 
