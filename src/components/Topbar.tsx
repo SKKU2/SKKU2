@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { isLocalMode, serverClient } from '@/lib/supabase/server';
+import { isLocalMode, isMisconfigured, serverClient } from '@/lib/supabase/server';
 import { signOut } from '@/app/actions';
 import { NavLinks } from './NavLinks';
 
@@ -8,9 +8,9 @@ const ROLE_LABEL: Record<string, string> = { admin: '관리자', operator: '조�
 export async function Topbar() {
   let who: { name: string; role: string; unit: string } | null = null;
   const local = isLocalMode();
-  const sb = await serverClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (user) {
+  const sb = isMisconfigured() ? null : await serverClient();
+  const user = sb ? (await sb.auth.getUser()).data.user : null;
+  if (sb && user) {
     const { data: p } = await sb.from('profiles').select('display_name,email,role,unit_id,units(name)').eq('id', user.id).maybeSingle();
     if (p) who = { name: p.display_name || p.email, role: p.role, unit: (p as any).units?.name || '부대 미지정' };
   }

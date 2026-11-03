@@ -13,6 +13,14 @@ export default function LoginPage() {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
+  if (!supabaseConfigured() && process.env.NODE_ENV === 'production') {
+    return (
+      <div className="auth-wrap card">
+        <h2>배포 설정 필요</h2>
+        <p className="note" style={{ marginTop: 8 }}>Supabase 환경변수(NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)가 이 배포에 없습니다. Vercel 프로젝트 설정에 넣은 뒤 다시 배포하세요.</p>
+      </div>
+    );
+  }
   if (!supabaseConfigured()) {
     return (
       <div className="auth-wrap card">

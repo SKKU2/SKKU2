@@ -18,7 +18,7 @@ export async function proxy(req: NextRequest) {
   });
   const { data: { user } } = await sb.auth.getUser();
   const path = req.nextUrl.pathname;
-  if (!user && !path.startsWith('/login') && !path.startsWith('/auth')) {
+  if (!user && !path.startsWith('/login') && !path.startsWith('/auth') && path !== '/api/health') {
     const url = req.nextUrl.clone();
     url.pathname = '/login';
     url.search = '';

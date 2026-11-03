@@ -38,6 +38,8 @@ npm test
 
 ## 문서
 - [PRD](docs/PRD_기상브리핑_부대운용건의도구_2.md)
+- [배포 절차 (Supabase + Vercel)](docs/DEPLOY.md)
+- 배포 점검: `/api/health` (설정 여부만 표시, 키 값은 내보내지 않음)
 
 ## 보안 메모
 - AI는 부대 설정에서 켜야 하고 서버에 키가 있어야 동작한다. 꺼져 있으면 외부 AI 호출이 전혀 없다.
