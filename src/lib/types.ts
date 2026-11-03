@@ -81,6 +81,16 @@ export interface BriefingRow {
   ai: { response?: AiResponse; error?: string; model: string; at: string } | null;
   include_ai: boolean;
   capture_paths: string[];
+  astro?: Astro | null;
+}
+
+/** 대상일(KST)의 박명·일출몰·월출몰·월광 (ISO 시각) */
+export interface Astro {
+  bmnt: string | null; sunrise: string | null; sunset: string | null; eent: string | null;
+  bmct: string | null; eect: string | null;
+  moonrise: string | null; moonset: string | null; moonAlwaysUp: boolean; moonAlwaysDown: boolean;
+  illumination: number; phase: number; phaseName: string; moonUpAtMidnight: boolean;
+  lat?: number; lon?: number;
 }
 
 export interface AvSummary {
@@ -91,6 +101,7 @@ export interface AvSummary {
 export interface UnitSettings {
   version?: number;
   region: 'land' | 'mountain';
+  location: { lat: number; lon: number };
   approachRatio: number;
   popThreshold: number;
   criteria: any[];

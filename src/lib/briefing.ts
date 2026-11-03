@@ -1,7 +1,8 @@
 /* 브리핑 도메인 공통 로직 (서버·브라우저 공용) */
 import * as P from './wx/parser.js';
 import * as R from './wx/rules.js';
-import type { AvSummary, BriefingInput, BriefingRow, HazardState, Recommendation, Session, UnitSettings } from './types';
+import { astroForDay } from './wx/astro.js';
+import type { Astro, AvSummary, BriefingInput, BriefingRow, HazardState, Recommendation, Session, UnitSettings } from './types';
 
 export const HOUR = 3600e3;
 export const LEVELS: string[] = R.LEVELS;
@@ -133,7 +134,40 @@ export function evaluateInput(input: BriefingInput, settings: UnitSettings, prev
     recommendations: res.recs as Recommendation[],
     missing: res.missing as string[],
     parsed: compactReports(d.reports),
-    av_summary: d.avSum
+    av_summary: d.avSum,
+    astro: astroFor(input.targetTime, settings)
+  };
+}
+
+/** 대상일(KST 날짜)의 박명·월광. 위치가 없으면 null */
+export function astroFor(targetTime: string, settings: UnitSettings): Astro | null {
+  const ref = kstStrToDate(targetTime);
+  const loc = settings.location;
+  if (!ref || !loc || num(loc.lat) === null || num(loc.lon) === null) return null;
+  const p = kstParts(ref);
+  const dayStart = new Date(Date.UTC(p.y, p.mo - 1, p.d) - 9 * HOUR);
+  return { ...astroForDay(dayStart, Number(loc.lat), Number(loc.lon)), lat: Number(loc.lat), lon: Number(loc.lon) };
+}
+
+/** 천문 자료가 없는 예전 브리핑은 부대 위치로 계산해 채움 */
+export function ensureAstro<T extends Pick<BriefingRow, 'target_time' | 'astro'>>(b: T, settings: UnitSettings): T {
+  return b.astro ? b : { ...b, astro: astroFor(dateToKstStr(new Date(b.target_time)), settings) };
+}
+
+export function hm(iso: string | null | undefined): string {
+  if (!iso) return '-';
+  const p = kstParts(new Date(iso));
+  return `${pad(p.h)}:${pad(p.mi)}`;
+}
+/** 화면·출력 공용 천문 문구 */
+export function astroText(a: Astro | null | undefined) {
+  if (!a) return { twilight: '-', sun: '', moon: '-', moonTimes: '' };
+  const mt = a.moonAlwaysUp ? '종일 떠 있음' : a.moonAlwaysDown ? '종일 지평선 아래' : `월출 ${hm(a.moonrise)} · 월몰 ${hm(a.moonset)}`;
+  return {
+    twilight: `${hm(a.bmnt)} / ${hm(a.eent)}`,
+    sun: `일출 ${hm(a.sunrise)} · 일몰 ${hm(a.sunset)}`,
+    moon: `${a.illumination}% ${a.phaseName}`,
+    moonTimes: mt + (a.moonUpAtMidnight ? ' · 자정에 떠 있음' : ' · 자정에 짐')
   };
 }
 
@@ -176,9 +210,12 @@ export function hzSummary(b: Pick<BriefingRow, 'hazards'>) {
   });
   return out;
 }
-export function summaryRows(b: Pick<BriefingRow, 'civil' | 'av_summary'>): [string, string][] {
+export function summaryRows(b: Pick<BriefingRow, 'civil' | 'av_summary' | 'astro'>): [string, string][] {
   const c: any = b.civil || {}, a: any = b.av_summary || {};
+  const t = astroText(b.astro);
   return [
+    ['BMNT / EENT', b.astro ? `${t.twilight} (${t.sun})` : '-'],
+    ['월광 (당일 자정)', b.astro ? `${t.moon} (${t.moonTimes})` : '-'],
     ['기온 (최저/최고)', `${fmtV(c.tMin)} / ${fmtV(c.tMax)} ℃`],
     ['체감온도 (최고/최저)', `${fmtV(c.feelsMax)} / ${fmtV(c.feelsMin ?? c.tMin)} ℃`],
     ['강수확률 / 강수량', `${fmtV(c.pop, '%')} / 3h ${fmtV(c.rain3h, 'mm')}, 12h ${fmtV(c.rain12h, 'mm')}`],

@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireProfile } from '@/lib/supabase/server';
 import { loadBriefing, loadUnit } from '@/lib/data';
-import { LEVELS, SESSION_LABEL, fmtLong, hazardItems, rowToInput, summaryRows, warningText } from '@/lib/briefing';
+import { LEVELS, SESSION_LABEL, ensureAstro, fmtLong, hazardItems, rowToInput, summaryRows, warningText } from '@/lib/briefing';
 import { chartSvg } from '@/lib/chart';
 import { PrintButton } from '@/components/PrintButton';
 
@@ -10,10 +10,11 @@ export const dynamic = 'force-dynamic';
 export default async function PrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { sb } = await requireProfile();
-  const b = await loadBriefing(sb, id);
-  if (!b) notFound();
-  const unit = await loadUnit(sb, b.unit_id);
+  const row = await loadBriefing(sb, id);
+  if (!row) notFound();
+  const unit = await loadUnit(sb, row.unit_id);
   if (!unit) notFound();
+  const b = ensureAstro(row, unit.settings);
   const { cls } = hazardItems(b.hazards);
   const svg = chartSvg(rowToInput(b), unit.settings, 1000);
   const showAi = b.include_ai !== false && b.ai?.response;

@@ -88,6 +88,8 @@ function defaultSettings() {
   return {
     version: 1,
     region: 'land',
+    // BMNT/EENT·월광 계산 위치 (소수 1자리면 충분, AI로 보내지 않음)
+    location: { lat: 37.6, lon: 127.0 },
     approachRatio: 0.8,
     popThreshold: 60,
     criteria: defaultCriteria(),

@@ -54,6 +54,11 @@ export function SettingsEditor({ unit, hasServerKey }: { unit: { id: string; nam
           <label className="field"><span>기준 근접 비율 (%) → 조정</span><input type="number" step={5} min={0} max={100} value={Math.round(s.approachRatio * 100)} onChange={e => upd(x => { x.approachRatio = Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100; })} /></label>
           <label className="field"><span>강수 중으로 볼 강수확률 (%)</span><input type="number" step={10} min={0} max={100} value={s.popThreshold} onChange={e => upd(x => { x.popThreshold = Number(e.target.value); })} /></label>
         </div>
+        <div className="grid g4" style={{ marginTop: 10 }}>
+          <label className="field"><span>위도 (BMNT/EENT·월광 계산용)</span><input type="number" step={0.1} min={-90} max={90} value={s.location?.lat ?? ''} onChange={e => upd(x => { x.location = { ...(x.location || { lat: 37.6, lon: 127 }), lat: Number(e.target.value) }; })} /></label>
+          <label className="field"><span>경도</span><input type="number" step={0.1} min={-180} max={180} value={s.location?.lon ?? ''} onChange={e => upd(x => { x.location = { ...(x.location || { lat: 37.6, lon: 127 }), lon: Number(e.target.value) }; })} /></label>
+          <p className="note" style={{ gridColumn: 'span 2', alignSelf: 'end' }}>소수 1자리(약 10km)면 시각 오차 1분 안팎입니다. 서버에서만 계산하며 AI로 보내지 않습니다. 저장 후 “판단 실행”한 브리핑부터 반영됩니다.</p>
+        </div>
         <p className="note" style={{ marginTop: 8 }}>⚠ 기준표는 공개 자료 기반 초안입니다. 실제 적용 전 부대 지휘관 승인과 최신 기상청 기준 재확인이 필요합니다.</p>
       </div>
 

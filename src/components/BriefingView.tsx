@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as P from '@/lib/wx/parser.js';
-import { LEVELS, SESSION_LABEL, compareBriefings, fmtLong, fmtShort, fmtV, hazardItems, rowToInput } from '@/lib/briefing';
+import { LEVELS, SESSION_LABEL, astroText, compareBriefings, ensureAstro, fmtLong, fmtShort, fmtV, hazardItems, rowToInput } from '@/lib/briefing';
 import { chartSvg } from '@/lib/chart';
 import { copyForHwp, exportPptx } from '@/lib/exporters';
 import { aiPreview, aiRun, deleteBriefing, saveEdits } from '@/app/actions';
@@ -26,7 +26,9 @@ export function BriefingView({ b, prev, unitName, settings, editable, aiReady }:
   const { items, cls } = hazardItems(b.hazards);
   const c: any = b.civil || {}, a: any = b.av_summary || {};
   const dirty = memo !== (b.memo || '') || includeAi !== (b.include_ai !== false) || b.recommendations.some(r => texts[r.id] !== r.text);
-  const current: BriefingRow = { ...b, memo, include_ai: includeAi, recommendations: b.recommendations.map(r => ({ ...r, text: texts[r.id] ?? r.text })) };
+  const astro = ensureAstro(b, settings).astro;
+  const at = astroText(astro);
+  const current: BriefingRow = { ...b, astro, memo, include_ai: includeAi, recommendations: b.recommendations.map(r => ({ ...r, text: texts[r.id] ?? r.text })) };
 
   async function save() {
     setBusy('save');
@@ -112,6 +114,8 @@ export function BriefingView({ b, prev, unitName, settings, editable, aiReady }:
         {stat('시정·운고 (항공 최저)', a.visM !== null && a.visM !== undefined ? P.fmtVis({ m: a.visM }) : '-', `운고 ${a.ceilFt !== null && a.ceilFt !== undefined ? a.ceilFt.toLocaleString() + 'ft' : '없음'}`)}
         {stat('일기현상 (항공)', <span style={{ fontSize: 14 }}>{a.wxText || '-'}</span>, a.ts ? <b style={{ color: 'var(--stop)' }}>뇌우 포함</b> : '')}
         {stat('미세먼지 PM10', fmtV(c.pm10), '㎍/㎥')}
+        {stat('BMNT / EENT', at.twilight, at.sun || '설정에서 부대 위치 필요')}
+        {stat('월광 (당일 자정)', astro ? `${astro.illumination}%` : '-', astro ? `${astro.phaseName} · ${at.moonTimes}` : '')}
         {b.missing?.length > 0 && <div className="stat" style={{ gridColumn: '1/-1' }}><div className="k">미입력 (판단에서 제외됨)</div><div className="s">{b.missing.join(', ')}</div></div>}
       </div>
 

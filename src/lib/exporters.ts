@@ -45,7 +45,7 @@ export async function exportPptx(b: BriefingRow, unitName: string, settings: Uni
   const s2 = deck.addSlide();
   header(s2, '기상 현황');
   s2.addText(wt.slice(0, 5).map(t => ({ text: t, bullet: wt.length > 1 })), { x: 0.4, y: 1.05, w: 12.5, h: 1.2, fontSize: 13, bold: cls !== 'none', color: '1F2933', fill: bannerFill, line: bannerLine, inset: 0.12 });
-  s2.addTable([[{ text: '항목', bold: true, fill: 'E8EDF3' }, { text: '값', bold: true, fill: 'E8EDF3' }] as any[]].concat(summaryRows(b)), { x: 0.4, y: 2.45, colW: [2.6, 4.2], rowH: 0.42, fontSize: 13 });
+  s2.addTable([[{ text: '항목', bold: true, fill: 'E8EDF3' }, { text: '값', bold: true, fill: 'E8EDF3' }] as any[]].concat(summaryRows(b)), { x: 0.4, y: 2.45, colW: [2.4, 4.4], rowH: 0.36, fontSize: 12 });
   const parsed = b.parsed || [];
   const avText: any[] = [{ text: '항공기상 (공군 기상전문)', bold: true, fontSize: 14, color: '1D4E89' }];
   parsed.filter(r => r.type !== 'TAF').slice(0, 2).forEach(r => {

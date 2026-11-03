@@ -3,6 +3,7 @@ import * as P from '../src/lib/wx/parser.js';
 import * as R from '../src/lib/wx/rules.js';
 import * as G from '../src/lib/wx/advisor.js';
 import { MiniPptx, crc32 } from '../src/lib/wx/pptx.js';
+import { astroForDay, moonIllumination } from '../src/lib/wx/astro.js';
 import { evaluateInput, kstStrToDate } from '../src/lib/briefing';
 
 const REF = new Date('2026-11-02T22:00:00Z'); // 11/3 07:00 KST
@@ -132,6 +133,27 @@ describe('AI 안전장치', () => {
     expect(r.summary).toBe('s');
     expect('temperature' in bodies[0].generationConfig).toBe(false);
     expect(bodies[1].generationConfig.responseSchema).toBeUndefined();
+  });
+});
+
+describe('박명·월광', () => {
+  it('서울 2026-11-03: 일출몰·항해박명 (한국천문연구원 값과 ±3분)', () => {
+    const a = astroForDay(new Date('2026-11-02T15:00:00Z'), 37.5665, 126.978);
+    const kmin = (iso: string) => { const d = new Date(new Date(iso).getTime() + 9 * 3600e3); return d.getUTCHours() * 60 + d.getUTCMinutes(); };
+    expect(Math.abs(kmin(a.sunrise!) - (7 * 60 + 0))).toBeLessThanOrEqual(3);
+    expect(Math.abs(kmin(a.sunset!) - (17 * 60 + 36))).toBeLessThanOrEqual(3);
+    expect(kmin(a.bmnt!)).toBeLessThan(kmin(a.sunrise!));
+    expect(kmin(a.eent!)).toBeGreaterThan(kmin(a.sunset!));
+  });
+  it('월광: 2024-01-25 보름 ≈ 100%, 2024-01-11 삭 ≈ 0%', () => {
+    expect(moonIllumination(new Date('2024-01-25T18:00:00Z')).fraction).toBeGreaterThan(0.99);
+    expect(moonIllumination(new Date('2024-01-11T12:00:00Z')).fraction).toBeLessThan(0.01);
+  });
+  it('판단 결과에 천문 자료 포함', () => {
+    const input: any = { session: 'morning', targetTime: '2026-11-03T08:00', author: '', rawMetar: '', rawTaf: '', civil: {}, hourly: [], activeWarnings: [], avOverride: {}, capturePaths: [] };
+    const ev = evaluateInput(input, R.defaultSettings() as any);
+    expect(ev.astro?.phaseName).toBeTruthy();
+    expect(ev.astro?.illumination).toBeGreaterThanOrEqual(0);
   });
 });
 
